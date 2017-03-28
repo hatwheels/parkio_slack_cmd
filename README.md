@@ -8,6 +8,7 @@
 
 ## **HOW-TO** ##
 
+  * **Create** a bot with name **cmdbot** for your **Slack team**
   * **Run** **`parkio_main.py`** in command line (python 3.x.x) to start **_cmdbot_**
   * **Auctions**: 
     * Track all running auctions: send to **_cmdbot_** **`auction all`**
