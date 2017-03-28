@@ -141,7 +141,7 @@ def eval_tld(tld, domains):
 		msg = 'No domain with tld ' + tld + ' is dropping soon'
 		print('[domain ' + tld + '] ' + msg + '\n')
 		sys.stdout.flush() #flush output due to threading
-		get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=data['msg'], as_user=True)
+		get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
 		return False
 	return True
 
