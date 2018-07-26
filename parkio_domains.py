@@ -4,7 +4,7 @@ from slackclient import SlackClient
 from pprint import pprint
 from parkiolib import get_slack_client, xstr, TX_CHANNEL
 
-DOMAIN_JSON_ENDPOINT = "https://app.park.io/domains/index/"
+DOMAIN_JSON_ENDPOINT = "https://park.io/domains/index/"
 
 
 '''

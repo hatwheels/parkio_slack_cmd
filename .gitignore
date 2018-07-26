@@ -96,4 +96,7 @@ ENV/
 # Rope project settings
 .ropeproject
 
+#VSCode
+*.json
+
 # End of https://www.gitignore.io/api/python

@@ -4,10 +4,11 @@ from slackclient import SlackClient
 from pprint import pprint
 from parkiolib import get_slack_client, xstr, TX_CHANNEL
 
+DOMAIN_JSON_ENDPOINT = "https://park.io/auctions.json"
 
 def parkio_auction(s, name, auctions):
 	try:
-		response = s.get("https://app.park.io/auctions.json")
+		response = s.get(DOMAIN_JSON_ENDPOINT)
 		if response.status_code != 200:
 			print('[auction ' + name + ']' + ' http error: ' + str(response.status_code) + '\n')
 			pprint(response.json())
@@ -91,7 +92,7 @@ def parkio_auction(s, name, auctions):
 def parkio_start(name='all'):
 	with requests.Session() as s:
 		try:
-			response = s.get("https://app.park.io/auctions.json")
+			response = s.get(DOMAIN_JSON_ENDPOINT)
 			if response.status_code != 200:
 				print('[auction ' + name + ']' + ' http error: ' + str(response.status_code) + '\n')
 				pprint(response.json())
