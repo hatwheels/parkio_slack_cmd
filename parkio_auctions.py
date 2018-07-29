@@ -2,16 +2,15 @@
 import sys, time, requests, threading
 from slackclient import SlackClient
 from pprint import pprint
-from parkiolib import get_slack_client, xstr, TX_CHANNEL
+from parkiolib import get_slack_client, xstr, TX_CHANNEL, AUCTION_JSON_EP
 
-DOMAIN_JSON_ENDPOINT = "https://park.io/auctions.json"
 
 def parkio_auction(s, name, auctions):
 	try:
-		response = s.get(DOMAIN_JSON_ENDPOINT)
-		if response.status_code != 200:
-			print('[auction ' + name + ']' + ' http error: ' + str(response.status_code) + '\n')
-			pprint(response.json())
+		reply = s.get(AUCTION_JSON_EP)
+		if reply.status_code != 200:
+			print('[auction ' + name + ']' + ' http error: ' + str(reply.status_code) + '\n')
+			pprint(reply.json())
 			sys.stdout.flush() #flush output due to threading
 
 			# repeat main request in 20 seconds
@@ -21,7 +20,7 @@ def parkio_auction(s, name, auctions):
 			msg = ''
 
 			#transform response list to a dictionary
-			for k in response.json()['auctions']:
+			for k in reply.json()['auctions']:
 				newAuctions[k['id']] = {'name': k['name'], 'num_bids': k['num_bids'], 'price': k['price']}
 
 			#check for finished auctions and delete finished auctions from auctions
@@ -36,11 +35,11 @@ def parkio_auction(s, name, auctions):
 				if k in auctions: #auction exists
 					if v['num_bids'] != auctions[k].get('num_bids'): #new bid in current auction
 						auctions[k] = {'name': v['name'], 'num_bids': v['num_bids'], 'price': v['price']}
-						msg = msg + 'New bid for #' + xstr(k) + ':\n' + xstr(v['name']) + ', ' + 'bids: ' + \
+						msg = msg + 'New bid for ' + xstr(k) + ':\n' + xstr(v['name']) + ', ' + 'bids: ' + \
 							xstr(v['num_bids']) + ', ' + 'price: ' + xstr(v['price']) + ' USD\n'
 				else: #new auction
 					auctions[k] = {'name': v['name'], 'num_bids': v['num_bids'], 'price': v['price']}
-					msg = msg + 'New auction #' + xstr(k) + ':\n' + xstr(v['name']) + ', ' + 'bids: ' + \
+					msg = msg + 'New auction ' + xstr(k) + ':\n' + xstr(v['name']) + ', ' + 'bids: ' + \
 						xstr(v['num_bids']) + ', ' + 'price: ' + xstr(v['price']) + ' USD\n'
 
 			#print changes to console and send slack message
@@ -57,12 +56,12 @@ def parkio_auction(s, name, auctions):
 			found = False
 			msg = ''
 
-			for k in response.json()['auctions']:
+			for k in reply.json()['auctions']:
 				if k['id'] in auctions:
 					found = True
 					if k['num_bids'] != auctions[k['id']].get('num_bids'):
 						auctions[k['id']] = {'name' : k['name'], 'num_bids': k['num_bids'], 'price': k['price']}
-						msg = 'New bid for #' + xstr(k['id']) + ':\n' + xstr(k['name']) + ', bids: ' + \
+						msg = 'New bid for ' + xstr(k['id']) + ':\n' + xstr(k['name']) + ', bids: ' + \
 							xstr(k['num_bids']) + ', price: ' + xstr(k['price']) + ' USD\n'
 						print('[auction ' + name + ']' + ' ' + msg + '\n')
 						sys.stdout.flush() #flush output due to threading
@@ -77,7 +76,7 @@ def parkio_auction(s, name, auctions):
 				main_thread(s, name, auctions)
 			else:
 				for k, v_dict in auctions:
-					msg = 'Auction #' + xstr(k) + ' finished:\n' + xstr(v_dict['name']) + ', bids: ' + \
+					msg = 'Auction ' + xstr(k) + ' finished:\n' + xstr(v_dict['name']) + ', bids: ' + \
 						xstr(v_dict['num_bids']) + ', prices: ' + xstr(v_dict['price']) + ' USD\n'
 					print('[auction ' + name + ']' + ' ' + msg + ' \n')
 					get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
@@ -92,10 +91,10 @@ def parkio_auction(s, name, auctions):
 def parkio_start(name='all'):
 	with requests.Session() as s:
 		try:
-			response = s.get(DOMAIN_JSON_ENDPOINT)
-			if response.status_code != 200:
-				print('[auction ' + name + ']' + ' http error: ' + str(response.status_code) + '\n')
-				pprint(response.json())
+			reply = s.get(AUCTION_JSON_EP)
+			if reply.status_code != 200:
+				print('[auction ' + name + ']' + ' http error: ' + str(reply.status_code) + '\n')
+				pprint(reply.json())
 				sys.stdout.flush() #flush output due to threading
 
 				#restart init request in 20 seconds
@@ -105,9 +104,9 @@ def parkio_start(name='all'):
 				msg = 'Current Auctions:\n'
 
 				#transform response list to a dictionary
-				for k in response.json()['auctions']:
+				for k in reply.json()['auctions']:
 					auctions[k['id']] = {'name': k['name'], 'num_bids': k['num_bids'], 'price': k['price']}
-					msg = msg + '#' + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'bids: ' + xstr(k['num_bids']) + \
+					msg = msg + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'bids: ' + xstr(k['num_bids']) + \
 						', ' + 'price: ' + xstr(k['price']) + ' USD\n'
 
 				#print auctions to console and send slack message
@@ -122,11 +121,11 @@ def parkio_start(name='all'):
 				found = False
 				msg = 'Auction \'' + name + '\' not found!'
 
-				for k in response.json()['auctions']:
+				for k in reply.json()['auctions']:
 					if k['name'] == name:
 						found = True
 						auctions[k['id']] = {'name' : k['name'], 'num_bids': k['num_bids'], 'price': k['price']}
-						msg = 'Auction #' + xstr(k['id']) +':\n' + xstr(k['name']) + ', bids: ' + \
+						msg = 'Auction ' + xstr(k['id']) +':\n' + xstr(k['name']) + ', bids: ' + \
 							xstr(k['num_bids']) + ', price: ' + xstr(k['price']) + ' USD\n'
 						break
 
@@ -165,7 +164,6 @@ def main_thread(s, name, auctions):
 	threading.Timer(20, parkio_auction, [s, name, auctions]).start()
 	print("[auction " + name + "]" + " Thread {} done.".format(threading.current_thread()))
 	sys.stdout.flush() #flush output due to threading
-
 
 
 if __name__ == "__main__":

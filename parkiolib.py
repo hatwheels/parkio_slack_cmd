@@ -6,6 +6,9 @@ RX_CHANNEL = '' #your channel id to receive messages
 RX_USER = '' # your user id to receive messages from
 SLACK_CMD_BOT = ''#<-- your bot token, keep it safe
 
+DOMAIN_JSON_EP = "https://park.io/domains/index/"
+AUCTION_JSON_EP = "https://park.io/auctions.json"
+
 slack_client = SlackClient(SLACK_CMD_BOT)
 
 

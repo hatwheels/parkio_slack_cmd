@@ -2,10 +2,9 @@
 import sys, time, requests, threading
 from slackclient import SlackClient
 from pprint import pprint
-from parkiolib import get_slack_client, xstr, TX_CHANNEL
+from parkiolib import get_slack_client, xstr, TX_CHANNEL, DOMAIN_JSON_EP
 
-DOMAIN_JSON_ENDPOINT = "https://park.io/domains/index/"
-
+#TODO: GET requests at most 2 by matching "count" key with "current" key!
 
 '''
 	data['conn'], data['tld'], data['domains'], data['new_domains'], data['page'], data['msg']
@@ -17,7 +16,7 @@ def parkio_process(data):
 	#check for available domains and delete available domains from dropping domains
 	for k, v_dict in list(domains.items()):
 		if k not in newDomains:
-			data['msg'] = data['msg'] + 'Domain #' + xstr(k) + ' is now available:\n' + xstr(v_dict['name']) + ', ' + \
+			data['msg'] = data['msg'] + 'Domain ' + xstr(k) + ' is now available:\n' + xstr(v_dict['name']) + ', ' + \
 				'date available: ' + xstr(v_dict['date_available']) + ', ' + \
 				'date registered: ' + xstr(v_dict['date_registered']) + '\n'
 			del domains[k]
@@ -29,7 +28,7 @@ def parkio_process(data):
 		if k not in domains: #new domain
 			domains[k] = {'name': v_dict['name'], 'date_available': v_dict['date_available'], 
 				'date_registered': v_dict['date_registered'], 'tld': v_dict['tld']}
-			data['msg'] = data['msg'] + 'New dropping domain #' + xstr(k) + ':\n' + xstr(v_dict['name']) + ', ' + \
+			data['msg'] = data['msg'] + 'New dropping domain ' + xstr(k) + ':\n' + xstr(v_dict['name']) + ', ' + \
 				'date available: ' + xstr(v_dict['date_available']) + ', ' + \
 				'date registered: ' + xstr(v_dict['date_registered']) + '\n'
 
@@ -47,26 +46,26 @@ def parkio_process(data):
 '''
 def parkio_domain(data):
 	try:
-		response = data['conn'].get(DOMAIN_JSON_ENDPOINT + data['tld'] + '/page:' + xstr(data['page']) + '.json')
-		if response.status_code != 200:
-			print('[domain ' + data['tld'] + '] ' + 'http error: ' + str(response.status_code) + '\n')
-			pprint(response.json())
+		reply = data['conn'].get(DOMAIN_JSON_EP + data['tld'] + '/page:' + xstr(data['page']) + '.json')
+		if reply.status_code != 200:
+			print('[domain ' + data['tld'] + '] ' + 'http error: ' + str(reply.status_code) + '\n')
+			pprint(reply.json())
 			sys.stdout.flush() #flush output due to threading
 
 			# repeat main request in 20 seconds
 			main_thread(data)
 		else:
-			if not eval_tld(data['tld'], response.json()['domains']): return
+			if not eval_tld(data['tld'], reply.json()['domains']): return
 
 			newDomains = data['new_domains']
 
 			#transform response list to a dictionary
-			for k in response.json()['domains']:
+			for k in reply.json()['domains']:
 				newDomains[k['id']] = {'name': k['name'], 'date_available': k['date_available'], 
 					'date_registered': k['date_registered'], 'tld': k['tld']}
 
 			#check if this was the last request
-			if not response.json()['nextPage']:
+			if not reply.json()['nextPage']:
 				parkio_process(data)
 				data['new_domains'] = dict()
 				data['page'] = 1
@@ -90,28 +89,28 @@ def parkio_domain(data):
 '''
 def parkio_start(data):
 	try:
-		response = data['conn'].get(DOMAIN_JSON_ENDPOINT + data['tld'] + '/page:' + xstr(data['page']) + '.json')
-		if response.status_code != 200:
-			print('[domain ' + data['tld'] + '] ' + 'http error: ' + str(response.status_code) + '\n')
-			pprint(response.json())
+		reply = data['conn'].get(DOMAIN_JSON_EP + data['tld'] + '/page:' + xstr(data['page']) + '.json?limit=1000')
+		if reply.status_code != 200:
+			print('[domain ' + data['tld'] + '] ' + 'http error: ' + str(reply.status_code) + '\n')
+			pprint(reply.json())
 			sys.stdout.flush() #flush output due to threading
 
 			#restart init request in 20 seconds
 			init_thread(data)
 		else:
-			if not eval_tld(data['tld'], response.json()['domains']): return
+			if not eval_tld(data['tld'], reply.json()['domains']): return
 
 			domains = data['domains']
 
 			#transform response list to a dictionary
-			for k in response.json()['domains']:
+			for k in reply.json()['domains']:
 				domains[k['id']] = {'name': k['name'], 'date_available': k['date_available'], 
 					'date_registered': k['date_registered'], 'tld': k['tld']}
-				data['msg'] = data['msg'] + '#' + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'date available: ' + \
+				data['msg'] = data['msg'] + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'date available: ' + \
 					xstr(k['date_available']) + ', ' + 'date registered: ' + xstr(k['date_registered']) + '\n'
 
 			#check if this was the last request
-			if not response.json()['nextPage']:
+			if not reply.json()['nextPage']:
 				#print domains to console and send slack message
 				print('[domain ' + data['tld'] + '] ' + data['msg'] + '\n')
 				sys.stdout.flush() #flush output due to threading
@@ -168,7 +167,6 @@ def main_thread(data):
 	sys.stdout.flush() #flush output due to threading
 
 
-
 if __name__ == "__main__":
 	if len(sys.argv) == 2:
 		data = {
@@ -184,4 +182,4 @@ if __name__ == "__main__":
 		msg = 'Wrong number of arguments'
 		print('[domain] ' + msg)
 		sys.stdout.flush() #flush output due to threading
-		get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=data['msg'], as_user=True)
+		get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
