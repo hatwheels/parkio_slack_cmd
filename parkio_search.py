@@ -3,7 +3,6 @@ import sys, time, requests
 from slackclient import SlackClient
 from parkiolib import get_slack_client, xstr, TX_CHANNEL, AUCTION_JSON_EP, DOMAIN_JSON_EP
 
-#TODO: GET requests at most 2 by matching "count" key with "current" key!
 
 def parkio_auction(s, name, tld):
     msg = ''
@@ -31,32 +30,32 @@ def parkio_auction(s, name, tld):
         get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
 
 
-def parkio_domain(s, name, tld, pg=1, msg=''):
-    err = True
+def parkio_domain(s, name, tld, limit=1):
+    msg = ''
+    end = True
     try:
-        reply = s.get(DOMAIN_JSON_EP + tld + '/page:' + xstr(pg) + '.json?limit=1000')
-        reply.raise_for_status()
+        reply = s.get(DOMAIN_JSON_EP + tld + '.json?limit=' + xstr(limit))
+        reply.raise_for_status
     except requests.exceptions.HTTPError as err:
         msg = msg + xstr(err) + '\n'
     except:
         msg = msg + 'connection error\n'
     else:
-        err = False
-        for k in reply.json()['domains']:
-            domain = xstr(k['name'])
-            ls = domain.split('.') if domain != None else list()
-            if len(ls) == 2 and (tld == 'all' or tld == ls[1]) and ls[0].find(name) is not -1:
-                msg = msg + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'date available: ' + \
-                    xstr(k['date_available']) + ', ' + 'date registered: ' + xstr(k['date_registered']) + '\n'
-    finally:
-        #Check if there are more pages
-        if not err and reply.json()['nextPage']:
-            parkio_domain(s, name, tld, pg + 1, msg)
+        count = int(xstr(reply.json()['count']))
+        current = int(xstr(reply.json()['current']))
+        if count > current: end = False
         else:
-            if msg == '':
-                msg = 'No domains containing name: \'' + name + '\' and with tld: \'' + tld + '\'\n'
-            else:
-                msg = 'Domains found:\n' + msg
+            for k in reply.json()['domains']:
+                domain = xstr(k['name'])
+                ls = domain.split('.') if domain != None else list()
+                if len(ls) == 2 and (tld == 'all' or tld == ls[1]) and ls[0].find(name) is not -1:
+                    msg = msg + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'date available: ' + \
+                        xstr(k['date_available']) + ', ' + 'date registered: ' + xstr(k['date_registered']) + '\n'
+    finally:
+        if not end: parkio_domain(s, name, tld, count)
+        else:
+            if msg == '': msg = 'No domains containing name: \'' + name + '\' and with tld: \'' + tld + '\'\n'
+            else: msg = 'Domains found:\n' + msg
             print('[search -n=' + name + ' -t=' + tld + '] ' + msg + '\n')
             sys.stdout.flush() #flush output due to threading
             get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
@@ -69,13 +68,13 @@ def parkio_search(name, tld):
 
 
 if __name__ == "__main__":
-    err = True
+    error = True
     if len(sys.argv) == 2:
         domain = sys.argv[1].split(' ')
         if len(domain) == 2:
-            err = False
+            error = False
             parkio_search(domain[0], domain[1]) 
-    if err == True:
+    if error == True:
         msg = 'Invalid arguments, please run \'help\''
         print('[search] ' + msg)
         sys.stdout.flush() #flush output due to threading
