@@ -1,7 +1,6 @@
 #!/usr/env python3
 import sys, time, requests, threading
 from slackclient import SlackClient
-from pprint import pprint
 from parkiolib import get_slack_client, xstr, TX_CHANNEL, DOMAIN_JSON_EP
 
 
@@ -32,9 +31,9 @@ def parkio_process(data):
 
 	#print changes to console and send slack message
 	if not msg:
-		print('[domain ' + data['tld'] + '] ' + 'nothing changed\n')
+		print('[domain ' + data['tld'] + '] ' + 'nothing changed')
 	else:
-		print('[domain ' + data['tld'] + '] ' + msg + '\n')
+		print('[domain ' + data['tld'] + '] ' + msg, end='')
 		get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
 	sys.stdout.flush() #flush output due to threading
 
@@ -47,17 +46,15 @@ def parkio_domain(data):
 	state = 'e' #'e': error, 'c': continue, 'f': found, 'n': nothing found
 	try:
 		reply = data['conn'].get(DOMAIN_JSON_EP + data['tld'] + '.json?limit=' + xstr(data['limit']))
-		reply.raise_for_status
+		reply.raise_for_status()
 	except requests.exceptions.HTTPError as err:
 		msg = xstr(err) + '\n'
 	except:
 		msg = 'connection error\n'
 	else:
+		replyDomains = reply.json()['domains']
 		#Check if any dropping domains with tld
-		if not eval_tld(data['tld'], reply.json()['domains']):
-			state = 'n'
-			msg = 'No more expiring domains found\n'
-		else:
+		if data['tld'] == 'all' or data['tld'] == replyDomains[0].get('tld'):
 			count = int(xstr(reply.json()['count']))
 			if count > data['limit']: #Check if more domains available than current limit
 				state = 'c'
@@ -66,12 +63,15 @@ def parkio_domain(data):
 				state = 'f'
 				newDomains = data['new_domains']
 				#transform response list to a dictionary
-				for k in reply.json()['domains']:
+				for k in replyDomains:
 					newDomains[k['id']] = {'name': k['name'], 'date_available': k['date_available'], 
 						'date_registered': k['date_registered'], 'tld': k['tld']}
+		else:
+			state = 'n'
+			msg = 'No domain with tld ' + data['tld'] + ' is dropping soon\n'
 	finally:
 		if state is 'e': #Some error occured, restart
-			print('[domain ' + data['tld'] + '] ' + msg + '\n')
+			print('[domain ' + data['tld'] + '] ' + msg, end='')
 			sys.stdout.flush() #flush output due to threading
 			# repeat main request in 20 seconds
 			main_thread(data)
@@ -83,7 +83,7 @@ def parkio_domain(data):
 			# repeat main request in 20 seconds
 			main_thread(data)
 		elif state is 'n':
-			print('[domain ' + data['tld'] + '] ' + msg + '\n')
+			print('[domain ' + data['tld'] + '] ' + msg, end='')
 			sys.stdout.flush() #flush output due to threading
 			get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
 
@@ -96,17 +96,15 @@ def parkio_start(data):
 	state = 'e' #'e': error, 'c': continue, 'f': found, 'n': nothing found
 	try:
 		reply = data['conn'].get(DOMAIN_JSON_EP + data['tld'] + '.json?limit=' + xstr(data['limit']))
-		reply.raise_for_status
+		reply.raise_for_status()
 	except requests.exceptions.HTTPError as err:
 		msg = xstr(err) + '\n'
 	except:
 		msg = 'connection error\n'
 	else:
+		replyDomains = reply.json()['domains']
 		#Check if any dropping domains with tld
-		if not eval_tld(data['tld'], reply.json()['domains']):
-			state = 'n'
-			msg = 'No expiring domains found\n'
-		else:
+		if data['tld'] == 'all' or data['tld'] == replyDomains[0].get('tld'):
 			count = int(xstr(reply.json()['count']))
 			if count > data['limit']: #Check if more domains available than current limit
 				state = 'c'
@@ -116,52 +114,42 @@ def parkio_start(data):
 				msg = 'Dropping Domains:\n'
 				domains = data['domains']
 				#transform response list to a dictionary
-				for k in reply.json()['domains']:
+				for k in replyDomains:
 					domains[k['id']] = {'name': k['name'], 'date_available': k['date_available'], 
 						'date_registered': k['date_registered'], 'tld': k['tld']}
 					msg = msg + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'date available: ' + \
 						xstr(k['date_available']) + ', ' + 'date registered: ' + xstr(k['date_registered']) + '\n'
+		else:
+			state = 'n'
+			msg = 'No domain with tld ' + data['tld'] + ' is dropping soon\n'
 	finally:
 		if state is 'e': #Some error occured, restart
-			print('[domain ' + data['tld'] + '] ' + msg + '\n')
+			print('[domain ' + data['tld'] + '] ' + msg, end='')
 			sys.stdout.flush() #flush output due to threading
 			#restart init request in 20 seconds
 			init_thread(data)
 		elif state is 'c': parkio_start(data) #More domains available, re-request with higher limit
 		elif state is 'f': #Found domains with tld
-			data['limit'] = len(data['domains'])
-			print('[domain ' + data['tld'] + '] ' + msg + '\n')
+			print('[domain ' + data['tld'] + '] ' + msg, end='')
 			sys.stdout.flush() #flush output due to threading
+			data['limit'] = len(data['domains'])
 			get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
 			#start main request in 20 seconds
 			main_thread(data)
 		elif state is 'n': #No domains found with tld
-			print('[domain ' + data['tld'] + '] ' + msg + '\n')
+			print('[domain ' + data['tld'] + '] ' + msg, end='')
 			sys.stdout.flush() #flush output due to threading
 			get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
-
-
-'''
-	check if park.io database has any dropping domains with the passed tld
-'''
-def eval_tld(tld, domains):
-	if tld != 'all' and tld != domains[0].get('tld'):
-		msg = 'No domain with tld ' + tld + ' is dropping soon'
-		print('[domain ' + tld + '] ' + msg + '\n')
-		sys.stdout.flush() #flush output due to threading
-		get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
-		return False
-	return True
 
 
 '''
 	run init request in 20 seconds
 '''
 def init_thread(data):
-	print('[domain ' + data['tld'] + '] ' + " Thread {} starting.".format(threading.current_thread()))
+	print('[domain ' + data['tld'] + ']' + " Thread {} starting.".format(threading.current_thread()))
 	sys.stdout.flush() #flush output due to threading
 	threading.Timer(20, parkio_start, [data]).start()
-	print('[domain ' + data['tld'] + '] ' + " Thread {} done.".format(threading.current_thread()))
+	print('[domain ' + data['tld'] + ']' + " Thread {} done.".format(threading.current_thread()))
 	sys.stdout.flush() #flush output due to threading
 
 
@@ -169,10 +157,10 @@ def init_thread(data):
 	run main request in 20 seconds 
 '''
 def main_thread(data):
-	print('[domain ' + data['tld'] + '] ' + " Thread {} starting.".format(threading.current_thread()))
+	print('[domain ' + data['tld'] + ']' + " Thread {} starting.".format(threading.current_thread()))
 	sys.stdout.flush() #flush output due to threading
 	threading.Timer(20, parkio_domain, [data]).start()
-	print('[domain ' + data['tld'] + '] ' + " Thread {} done.".format(threading.current_thread()))
+	print('[domain ' + data['tld'] + ']' + " Thread {} done.".format(threading.current_thread()))
 	sys.stdout.flush() #flush output due to threading
 
 

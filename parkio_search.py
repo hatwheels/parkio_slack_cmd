@@ -4,6 +4,9 @@ from slackclient import SlackClient
 from parkiolib import get_slack_client, xstr, TX_CHANNEL, AUCTION_JSON_EP, DOMAIN_JSON_EP
 
 
+'''
+    s: Requests Session, name: domain keyword (string), tld: tld (string)
+'''
 def parkio_auction(s, name, tld):
     msg = ''
     try:
@@ -20,22 +23,25 @@ def parkio_auction(s, name, tld):
             if len(ls) == 2 and (tld == 'all' or tld == ls[1]) and ls[0].find(name) is not -1:
                 msg = msg + xstr(k['id']) + ': ' + xstr(k['name']) + ', ' + 'bids: ' + xstr(k['num_bids']) + \
                     ', ' + 'price: ' + xstr(k['price']) + ' USD\n'
-        if msg == '':
+        if not msg:
             msg = 'No auctions containing name: \'' + name + '\' and with tld: \'' + tld + '\'\n'
         else:
             msg = 'Auctions found:\n' + msg
     finally:
-        print('[search -n=' + name + ' -t=' + tld + '] ' + msg + '\n')
+        print('[search -n=' + name + ' -t=' + tld + '] ' + msg, end='')
         sys.stdout.flush() #flush output due to threading
         get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
 
 
-def parkio_domain(s, name, tld, limit=1):
+'''
+    s: Requests Session, name: domain keyword (string), tld: tld (string), limit: max number of domains per page (int)
+'''
+def parkio_domain(s, name, tld, limit=1000):
     msg = ''
     end = True
     try:
         reply = s.get(DOMAIN_JSON_EP + tld + '.json?limit=' + xstr(limit))
-        reply.raise_for_status
+        reply.raise_for_status()
     except requests.exceptions.HTTPError as err:
         msg = msg + xstr(err) + '\n'
     except:
@@ -56,11 +62,13 @@ def parkio_domain(s, name, tld, limit=1):
         else:
             if msg == '': msg = 'No domains containing name: \'' + name + '\' and with tld: \'' + tld + '\'\n'
             else: msg = 'Domains found:\n' + msg
-            print('[search -n=' + name + ' -t=' + tld + '] ' + msg + '\n')
+            print('[search -n=' + name + ' -t=' + tld + '] ' + msg, end='')
             sys.stdout.flush() #flush output due to threading
             get_slack_client().api_call("chat.postMessage", channel=TX_CHANNEL, text=msg, as_user=True)
 
-
+'''
+    name: domain keyword (string), tld: tld (string)
+'''
 def parkio_search(name, tld):
     with requests.Session() as s:
         parkio_auction(s, name, tld)
