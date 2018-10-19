@@ -2,7 +2,7 @@
 
 ## **BRIEF** ##
 
-  * Issue commands to track all/specific running auctions and all/specific expiring domains **@park.io**
+  * Issue commands to track all/specific running auctions and all/specific expiring domains **[park.io](https://park.io)**
   * Commands are issued in **Slack** to **_cmdbot_**, thus makes use of the **Slack API**
 
 
